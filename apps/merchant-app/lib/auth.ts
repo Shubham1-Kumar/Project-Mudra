@@ -5,8 +5,8 @@ import db from "@repo/db/client";
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: process.env.MUDRA_MERCHANT_GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.MUDRA_MERCHANT_GOOGLE_CLIENT_SECRET || "",
     }),
   ],
   callbacks: {
@@ -38,5 +38,5 @@ export const authOptions: NextAuthOptions = {
       }
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || "secret",
+  secret: process.env.MUDRA_MERCHANT_NEXTAUTH_SECRET || "secret",
 };
