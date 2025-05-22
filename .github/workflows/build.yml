@@ -3,11 +3,14 @@ name: Build on PR
 on:
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
-  build:
+  # Step 1: Generate Prisma client using shared DB
+  setup-db:
     runs-on: ubuntu-latest
+    environment: env.package.db
+
     steps:
       - uses: actions/checkout@v3
 
@@ -15,12 +18,57 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-      
+
       - name: Install Dependencies
         run: npm install
 
-      - name: Initialize Prisma client
+      - name: Setup DB Env
+        run: echo "PRISMA_SHARED_DATABASE_URL=${{ secrets.PRISMA_SHARED_DATABASE_URL }}" > packages/db/.env
+
+      - name: Generate Prisma Client
         run: cd packages/db && npx prisma generate && cd ../..
-        
-      - name: Run Build
+
+  # Step 2: Build each app
+  build-apps:
+    needs: setup-db
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [merchant-app, user-app]
+
+    environment: env.app.${{ matrix.app }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install Root Dependencies
+        run: npm install
+
+      - name: Setup App Env
+        run: |
+          if [ "${{ matrix.app }}" = "merchant-app" ]; then
+            echo "NEXTAUTH_URL=${{ secrets.MUDRA_MERCHANT_NEXTAUTH_URL }}" > apps/merchant-app/.env
+            echo "MUDRA_MERCHANT_NEXTAUTH_SECRET=${{ secrets.MUDRA_MERCHANT_NEXTAUTH_SECRET }}" >> apps/merchant-app/.env
+            echo "MUDRA_MERCHANT_GOOGLE_CLIENT_ID=${{ secrets.MUDRA_MERCHANT_GOOGLE_CLIENT_ID }}" >> apps/merchant-app/.env
+            echo "MUDRA_MERCHANT_GOOGLE_CLIENT_SECRET=${{ secrets.MUDRA_MERCHANT_GOOGLE_CLIENT_SECRET }}" >> apps/merchant-app/.env
+
+          elif [ "${{ matrix.app }}" = "user-app" ]; then
+            echo "NEXTAUTH_URL=${{ secrets.MUDRA_USER_NEXTAUTH_URL }}" > apps/user-app/.env
+            echo "MUDRA_USER_JWT_SECRET=${{ secrets.MUDRA_USER_JWT_SECRET }}" >> apps/user-app/.env
+
+          elif [ "${{ matrix.app }}" = "bank-webhook" ]; then
+            echo "BANK_WEBHOOK_SECRET=${{ secrets.BANK_WEBHOOK_SECRET }}" > apps/bank-webhook/.env
+          fi
+
+      - name: Install App Dependencies
+        run: npm install
+        working-directory: apps/${{ matrix.app }}
+
+      - name: Build App
         run: npm run build
+        working-directory: apps/${{ matrix.app }}
